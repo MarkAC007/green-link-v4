@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import type { SkillClaim } from '../types/skill';
@@ -73,9 +73,33 @@ export function useSkillClaims() {
     }
   };
 
+  const updateClaimStatus = async (
+    claimId: string, 
+    status: 'verified' | 'rejected' | 'pending',
+    rejectionReason?: string | null,
+    additionalData?: Record<string, any>
+  ) => {
+    if (!currentUser) throw new Error('No authenticated user');
+
+    const claimRef = doc(db, 'skillClaims', claimId);
+    
+    try {
+      await updateDoc(claimRef, {
+        status,
+        updatedAt: serverTimestamp(),
+        ...(status === 'rejected' && { rejectionReason, rejectedAt: serverTimestamp() }),
+        ...(status === 'verified' && additionalData),
+      });
+    } catch (error) {
+      console.error('Error updating claim status:', error);
+      throw error;
+    }
+  };
+
   return {
     claims,
     loading,
-    createClaim
+    createClaim,
+    updateClaimStatus
   };
 }

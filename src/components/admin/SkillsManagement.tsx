@@ -8,6 +8,7 @@ import { Modal } from '../common/Modal';
 import { toast } from 'react-hot-toast';
 import { VerificationMetrics } from './VerificationMetrics';
 import { Skill } from '../../types/skill';
+import { serverTimestamp } from 'firebase/firestore';
 
 interface NewSkillFormData {
   name: string;
@@ -18,7 +19,7 @@ interface NewSkillFormData {
 }
 
 export function SkillsManagement() {
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
   const navigate = useNavigate();
   const { claims, loading: claimsLoading, updateClaimStatus } = useSkillClaims();
   const { skills, loading: skillsLoading, addSkill, deleteSkill } = useSkills();
@@ -87,11 +88,14 @@ export function SkillsManagement() {
   const handleVerify = async (claimId: string) => {
     try {
       setIsVerifying(true);
-      await updateClaimStatus(claimId, 'verified');
+      await updateClaimStatus(claimId, 'verified', null, {
+        verifiedAt: serverTimestamp(),
+        verifiedBy: currentUser?.uid
+      });
       toast.success('Skill verified successfully');
     } catch (error) {
+      console.error('Error verifying skill:', error);
       toast.error('Failed to verify skill');
-      console.error(error);
     } finally {
       setIsVerifying(false);
     }
@@ -315,7 +319,7 @@ export function SkillsManagement() {
                     {getSkillName(claim.skillId)}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Verified on {formatDate(claim.verifiedAt)}
+                    Verified on {new Date(claim.verifiedAt!).toLocaleDateString()}
                   </p>
                 </div>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -343,7 +347,7 @@ export function SkillsManagement() {
                     {getSkillName(claim.skillId)}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Rejected on {formatDate(claim.rejectedAt)}
+                    Rejected on {new Date(claim.verifiedAt!).toLocaleDateString()}
                   </p>
                   {claim.rejectionReason && (
                     <p className="mt-2 text-sm text-red-600">
