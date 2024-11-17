@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSkillClaims } from '../../hooks/useSkillClaims';
@@ -33,6 +33,8 @@ export function SkillsManagement() {
     requiresEvidence: true,
     acceptedFileTypes: ['.pdf', '.jpg', '.png']
   });
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
 
   React.useEffect(() => {
     if (userProfile?.role !== 'admin') {
@@ -84,11 +86,14 @@ export function SkillsManagement() {
 
   const handleVerify = async (claimId: string) => {
     try {
+      setIsVerifying(true);
       await updateClaimStatus(claimId, 'verified');
       toast.success('Skill verified successfully');
     } catch (error) {
       toast.error('Failed to verify skill');
       console.error(error);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -110,6 +115,16 @@ export function SkillsManagement() {
     }
   };
 
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return 'Date not available';
+    try {
+      return new Date(timestamp).toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid date';
+    }
+  };
+
   if (claimsLoading || skillsLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -121,9 +136,21 @@ export function SkillsManagement() {
     );
   }
 
-  const pendingClaims = claims.filter(claim => claim.status === 'pending');
+  const pendingClaims = claims.filter(claim => {
+    console.log('Checking claim:', claim);
+    return claim.status === 'pending' || !claim.status;
+  });
   const verifiedClaims = claims.filter(claim => claim.status === 'verified');
   const rejectedClaims = claims.filter(claim => claim.status === 'rejected');
+
+  console.log('All claims:', claims);
+  console.log('Pending claims:', pendingClaims);
+  console.log('Verified claims:', verifiedClaims);
+  console.log('Rejected claims:', rejectedClaims);
+
+  // Log the filtered results
+  console.log('Claims array type:', Array.isArray(claims));
+  console.log('Claims structure:', JSON.stringify(claims[0], null, 2));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -208,7 +235,10 @@ export function SkillsManagement() {
                     {getSkillName(claim.skillId)}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Submitted on {new Date(claim.createdAt).toLocaleDateString()}
+                    Submitted by {claim.userName || claim.userId}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Submitted on {formatDate(claim.createdAt)}
                   </p>
                 </div>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -219,24 +249,28 @@ export function SkillsManagement() {
               <div className="mt-4">
                 <h4 className="text-sm font-medium text-gray-900">Evidence Documents</h4>
                 <div className="mt-2 space-y-2">
-                  {claim.evidence.map((doc, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <ExternalLink className="h-4 w-4 text-gray-400 mr-2" />
-                        <a
-                          href={doc.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-green-600 hover:text-green-700"
-                        >
-                          {doc.fileName}
-                        </a>
+                  {claim.evidence && claim.evidence.length > 0 ? (
+                    claim.evidence.map((doc, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <ExternalLink className="h-4 w-4 text-gray-400 mr-2" />
+                          <a
+                            href={doc.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-green-600 hover:text-green-700"
+                          >
+                            {doc.fileName}
+                          </a>
+                        </div>
+                        {doc.description && (
+                          <span className="text-sm text-gray-500">{doc.description}</span>
+                        )}
                       </div>
-                      {doc.description && (
-                        <span className="text-sm text-gray-500">{doc.description}</span>
-                      )}
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No evidence provided</p>
+                  )}
                 </div>
               </div>
 
@@ -253,10 +287,11 @@ export function SkillsManagement() {
                 </button>
                 <button
                   onClick={() => handleVerify(claim.id)}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+                  disabled={isVerifying}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Verify
+                  {isVerifying ? 'Verifying...' : 'Verify'}
                 </button>
               </div>
             </div>
@@ -280,7 +315,7 @@ export function SkillsManagement() {
                     {getSkillName(claim.skillId)}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Verified on {new Date(claim.verifiedAt!).toLocaleDateString()}
+                    Verified on {formatDate(claim.verifiedAt)}
                   </p>
                 </div>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -308,7 +343,7 @@ export function SkillsManagement() {
                     {getSkillName(claim.skillId)}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Rejected on {new Date(claim.verifiedAt!).toLocaleDateString()}
+                    Rejected on {formatDate(claim.rejectedAt)}
                   </p>
                   {claim.rejectionReason && (
                     <p className="mt-2 text-sm text-red-600">
