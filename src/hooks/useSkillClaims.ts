@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import type { SkillClaim } from '../types/skill';
 
 export function useSkillClaims() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [claims, setClaims] = useState<SkillClaim[]>([]);
   const [loading, setLoading] = useState(true);
-  const snapshotListenerRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!currentUser) {
@@ -17,22 +16,38 @@ export function useSkillClaims() {
       return;
     }
 
-    const q = query(
-      collection(db, 'skillClaims'),
-      where('userId', '==', currentUser.uid)
-    );
+    let claimsQuery;
+    
+    // For admin users, get all claims
+    if (userProfile?.role === 'admin') {
+      claimsQuery = query(
+        collection(db, 'skillClaims'),
+        orderBy('createdAt', 'desc')
+      );
+    } else {
+      // For regular users, only get their claims
+      claimsQuery = query(
+        collection(db, 'skillClaims'),
+        where('userId', '==', currentUser.uid),
+        orderBy('createdAt', 'desc')
+      );
+    }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(claimsQuery, (snapshot) => {
       const newClaims = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as SkillClaim[];
+      
+      console.log('Fetched claims for role:', userProfile?.role);
+      console.log('Number of claims fetched:', newClaims.length);
+      
       setClaims(newClaims);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, userProfile?.role]);
 
   const createClaim = async (skillId: string, files: File[], descriptions: string[]) => {
     if (!currentUser) throw new Error('No authenticated user');
